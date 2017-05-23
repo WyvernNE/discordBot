@@ -1,0 +1,5 @@
+{
+    "url_get": "http://localhost:8000/light-natural",
+    "url_post": "http://localhost:8000/light",
+    "weather_widget": "http://www.prevision-meteo.ch/uploads/widget/"
+}
