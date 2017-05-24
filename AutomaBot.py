@@ -1,114 +1,108 @@
+from discord.ext import commands
 import discord
 import asyncio
 import requests
 from random import choice
-from automa_tools import Automa_tools
+from automa_tools import User
+from automa_tools import Jokes
 from automation import Automation
 from tools import make_embed_message
 
-client = discord.Client()
+description = '''A bot used as front_end for an automation application.
+There are a number of utility commands being showcased here.'''
+bot = commands.Bot(command_prefix='!', description=description, self_bot=False)
 botUsername = ""
-sleep = False
-functions = {
-            "!user" : Automa_tools("!user", "user", "authorized_users.json", client),
-            "!jokes" : Automa_tools("!jokes", "jokes", "jokes.json", client),
-            "!automation" : Automation("!automation", "automation", "config.json", client)
-            }
 
-@client.event
+@bot.event
 async def on_ready():
+    bot.add_cog(Automation("!automation", "automation", "config.json", bot))
+    bot.add_cog(Jokes("!jokes", "jokes", "jokes.json", bot))
+    bot.add_cog(User("!user", "user", "authorized_users.json", bot))
     global botUsername
-    botUsername = client.user.name + "#" + client.user.discriminator
+    botUsername = bot.user.name + "#" + bot.user.discriminator
     print('Logged in as')
     print(botUsername)
     print('------')
     #await say_hi_to_everyone()
 
 async def say_hi_to_everyone():
-    server = list(client.servers)[0]
+    server = list(bot.servers)[0]
     for member in server.members:
         msg = 'Hello {0.mention} I am ready to work\ntype !help if you need help'.format(member)
-        await client.send_message(member, msg)
-
-@client.event
-async def on_message(message):
-    global botUsername
-    global commands
-    global sleep
-    global jokes
-    global authorized_users
-
-    #if message doesn't start with an exclamation mark, it isn't destinated to the bot. So do nothing
-    if len(message.content) > 0 and message.content[0] != "!":
-        return 0
-
-    #if the bot is asleep, the only thing he can do is waking up
-    if sleep == True:
-        if message.content.startswith('!wakeUp'):
-            sleep = False
-            msg = 'Goooooooooood morniiing vietnammmmmm :bomb:'
-
-            await client.change_presence(status=None, afk=False)
-            await client.send_message(message.channel, msg)
-        else:
-            return 0
-
-    if message.content.split(" ", 1)[0] in functions:
-        await treat(message)
-
-    elif message.content.startswith('!sleep'):
-        sleep=True
-        await client.change_presence(status=discord.Status.dnd, afk=False)
-        msg = 'Going to sleep. See you :wave:'
-        await client.send_message(message.channel, msg)
-
-    elif message.content.startswith('!help'):
-        await get_help(message)
-
-    elif message.content.startswith('!test'):
-        msg = 'You shouldn\'t test my patience...'
-        await client.send_message(message.channel, msg)
-
-    elif message.content.startswith('!hello'):
-        msg = 'Hello {0.author.mention}'.format(message)
-        await client.send_message(message.channel, msg)
-
-    else:
-        await send_error(message)
+        await bot.send_message(member, msg)
 
 async def send_error(message):
     msg = "Sorry, this command is unknown to me... :japanese_ogre: Do you need help? If so, just type *!help*"
-    await client.send_message(message.channel, msg)
-
-async def get_help(message):
-    jokes = functions["!jokes"].parameter_list
-    tmp = await client.send_message(message.channel, choice(jokes))
-    desc = {}
-    for func in functions:
-        desc.update({functions[func].example:functions[func].description})
-    embed = make_embed_message("**Commands**", message, desc, client)
-    await client.edit_message(tmp, new_content='Finished : ', embed=embed)
+    await bot.send_message(message.channel, msg)
 
 # BEGIN FUNCTIONS ---------------------------------------------------------------------------------------
 
+@bot.event
+async def on_command_error(exception, context):
+    if type(exception) is discord.ext.commands.errors.CommandNotFound:
+        msg = "This command doesn't exist. Try *!help* to get help. :sunglasses: "
+    elif type(exception) is discord.ext.commands.errors.DisabledCommand:
+        msg = ":sleeping:"
+    elif type(exception) is discord.ext.commands.errors.CommandInvokeError:
+        msg=exception.original
+    else:
+        msg = type(exception)
+    await bot.send_message(context.message.channel, msg)
+
+def is_owner(ctx):
+    return commands.check(lambda ctx: is_owner_check(ctx.message))
+
+@bot.event
+async def on_command_not_found(message):
+    bot.say(message)
+
+@bot.command(pass_context=True)
+async def hello(ctx):
+    """
+    Says hello
+    """
+    msg = f'Hello {ctx.message.author.mention}'
+    await bot.say(msg)
+
+@bot.command(pass_context=True, hidden=True)
+@commands.check(is_owner)
+async def sleep(ctx):
+    global awake
+    awake = False
+    await bot.change_presence(status=discord.Status.dnd, afk=True)
+    msg = 'Going to sleep. See you :wave:'
+    for comm in bot.commands:
+        if comm is not "wakeup":
+            bot.commands[comm].enabled=False
+    await bot.say(msg)
+
+@bot.command(pass_context=True, hidden=True)
+@commands.check(is_owner)
+async def wakeup(ctx):
+    for comm in bot.commands:
+        if comm is not "wakeup":
+            bot.commands[comm].enabled=True
+    await bot.change_presence(status=discord.Status.online, afk=False)
+    msg = 'Goooooooooood morniiing vietnammmmmm :bomb:'
+    await bot.say(msg)
 
 async def treat(message):
     """treats message if content matches a known function"""
     global functions
     #if user isn't allowed to use this function, let him know
     if str(message.author) not in functions["!user"].parameter_list:
-        msg = 'I am not allowed to let you do this! :no_mouth:\n Please don\'t contact {0.mention} (server admin) to complain...'.format(list(client.servers)[0].owner)
-        await client.send_message(message.channel, msg)
+        msg = 'I am not allowed to let you do this! :no_mouth:\n Please don\'t contact {0.mention} (server admin) to complain...'.format(list(bot.servers)[0].owner)
+        await bot.send_message(message.channel, msg)
         return 0
 
-    tmp = await client.send_message(message.channel, choice(functions["!jokes"].parameter_list))
+    tmp = await bot.send_message(message.channel, choice(functions["!jokes"].parameter_list))
 
     msg_split = message.content.split(" ", 1)
     my_commander = functions[msg_split[0]]
     if len(msg_split) == 1:
 
-        embed = make_embed_message("**What do you wand to do? Options are following:**", message, my_commander.funcs_desc, client)
-        await client.edit_message(tmp, new_content=message.content+ ': ', embed=embed)
+        embed = make_embed_message("**What do you wand to do? Options are following:**", message, my_commander.funcs_desc, bot)
+        await bot.edit_message(tmp, new_content=message.content+ ': ', embed=embed)
 
         def fct_check(m):
             """checks if function exists in class"""
@@ -117,7 +111,7 @@ async def treat(message):
                 return True
             return False
 
-        fct = await client.wait_for_message(timeout=15.0, author=message.author, check=fct_check)
+        fct = await bot.wait_for_message(timeout=15.0, author=message.author, check=fct_check)
         func_content = fct.content
     else:
         func_split = msg_split[1].split(" ", 1)
@@ -130,7 +124,7 @@ async def treat(message):
 
     if fct is None:
         msg = 'Sorry, you took too long. Aborting...'
-        await client.send_message(message.channel, msg)
+        await bot.send_message(message.channel, msg)
         return
     else:
         fct_split = func_content.split(" ", 1)
@@ -144,4 +138,4 @@ async def treat(message):
 # END FUNCTIONS ---------------------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    client.run('MzE0Nzg1Njg0NzYwMDM1MzI4.C_9OiQ.Jw2oZoxgnZb5ji5q-CnQdW_2UkM')
+    bot.run('MzE0Nzg1Njg0NzYwMDM1MzI4.C_9OiQ.Jw2oZoxgnZb5ji5q-CnQdW_2UkM')

@@ -2,35 +2,40 @@ from automa_tools import Automa_tools
 import discord
 import asyncio
 import requests
-from tools import make_embed_message
+from tools import make_embed_message, send_waiting_message
+from discord.ext import commands
+
+#TODO regarder s'il n'y a pas de fonction pour ajouter des commandes à un cog, sinon +++++essayer bot.add_command()
+# de ce fait, il sera possible d'utiliser les décorateurs
 
 class Automation(Automa_tools):
+
+
     """
     Class used in AutomaBot to make everything related to automation.
     """
-    def __init__(self, example, type, filename, client):
+    def __init__(self, example, type, filename, bot):
         self.example = example
         self.description = "Enters " + type + " functionalities"
         self.filename = filename
-        self.client = client
-        self.funcs_desc = {
-                    "lightstates" : "Returns lights states",
-                    "setlight [light] [state]" : "Sets [light] state to [state]",
-                    "get_forecast" : "Returns where to find the code for your nearest city",
-                    "get_forecast [location]":"Returns forecasts for current and next 4 days at [location]"}
-
+        self.bot = bot
+        self.dir = "config/"
 
         self.load_parameter()
 
+    @commands.command()
     async def lightstates(self, message, tmp):
-        """contacts the api to get light status and sends it"""
+        """
+        Returns lights status
+        Contacts the api to get light status writes it as a list"""
         r = requests.get(self.parameter_list["url_get"])
-        embed = make_embed_message("**Lights states**", message, eval(r.text), self.client)
-        await self.client.edit_message(tmp, new_content='Right now : ', embed=embed)
+        embed = make_embed_message("**Lights states**", message, eval(r.text), self.bot)
+        await self.bot.edit_message(tmp, new_content='Right now : ', embed=embed)
 
-
+    @commands.command()
     async def setlight(self, message, tmp, lamp_and_state):
-        """set lamp state to the state needed and returns server response
+        """ Sets lamp state
+            Changes state of lamp to state (both contained in lamp_and_state and sending server response
             TODO: improve this function to detect api errors.
         """
         msg_split = lamp_and_state.split(' ')
@@ -38,13 +43,16 @@ class Automation(Automa_tools):
             payload= {'lamp': msg_split[0], 'state': msg_split[1]}
             r = requests.post(self.parameter_list["url_post"], data=payload)
             msg = 'Changed {lamp} to {state}'.format(lamp=msg_split[0], state=r.text)
-            await self.client.edit_message(tmp, new_content=msg)
+            await self.bot.edit_message(tmp, new_content=msg)
         else:
-            await self.client.edit_message(tmp, new_content='You forgot parameters...\ndo you ride bikes with no wheels?... use *!automation* for help ')
+            await self.bot.edit_message(tmp, new_content='You forgot parameters...\ndo you ride bikes with no wheels?... use *!automation* for help ')
 
+
+    @commands.command()
     async def get_forecast(self, message, tmp, location=""):
-        """ Contacts a distant server and gets forecats for the location needed.
-            If no location is supplied, sends the link where you can find the nearest city
+        """
+        Returns forecasts for the specified location.
+        If no location is supplied, sends the link where you can find the nearest city
         """
         msg_split = message.content.split(' ', 1)
         if location != "":
@@ -63,8 +71,8 @@ class Automation(Automa_tools):
                         if not block:
                             break
                         handle.write(block)
-                await self.client.send_file(message.channel, msg)
-            await self.client.edit_message(tmp, new_content="Forecast for "+location+":")
+                await self.bot.send_file(message.channel, msg)
+            await self.bot.edit_message(tmp, new_content="Forecast for "+location+":")
         else:
             msg = 'To see all available cities, check this site : http://www.prevision-meteo.ch/services/json/list-cities'
-            await self.client.edit_message(tmp, new_content=msg)
+            await self.bot.edit_message(tmp, new_content=msg)

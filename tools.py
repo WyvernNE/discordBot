@@ -1,5 +1,6 @@
 import discord
 import datetime
+from random import choice
 def make_embed_message(title, message, datas, client):
     """
     Returns a embed message for discord.
@@ -27,3 +28,12 @@ def make_embed_message(title, message, datas, client):
         embed.add_field(name=key, value=data, inline=inline)
 
     return embed
+
+def send_waiting_message(func):
+    async def wrapper(*args, **kwargs):
+        the_self = args[0]
+        ctx = args[1]
+        tmp = await the_self.bot.send_message(ctx.message.channel, choice(the_self.bot.get_cog("Jokes").parameter_list))
+        args = (the_self, ctx.message, tmp) + args[2:]
+        return await func(*args, **kwargs)
+    return wrapper
