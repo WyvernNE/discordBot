@@ -1,7 +1,7 @@
 /trash
 /light
 /__pycache__
-/config
+/old_config
 config.json
 /automation_ressources/config.py
 check.txt
