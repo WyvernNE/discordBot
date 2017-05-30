@@ -3,139 +3,131 @@ import discord
 import asyncio
 import requests
 from random import choice
-from automa_tools import User
-from automa_tools import Jokes
-from automation import Automation
 from tools import make_embed_message
 
-description = '''A bot used as front_end for an automation application.
-There are a number of utility commands being showcased here.'''
-bot = commands.Bot(command_prefix='!', description=description, self_bot=False)
-botUsername = ""
+startup_extensions = ["automation"]
 
-@bot.event
-async def on_ready():
-    bot.add_cog(Automation("!automation", "automation", "config.json", bot))
-    bot.add_cog(Jokes("!jokes", "jokes", "jokes.json", bot))
-    bot.add_cog(User("!user", "user", "authorized_users.json", bot))
-    global botUsername
-    botUsername = bot.user.name + "#" + bot.user.discriminator
-    print('Logged in as')
-    print(botUsername)
-    print('------')
-    #await say_hi_to_everyone()
+class AutomaBot(commands.Bot):
 
-async def say_hi_to_everyone():
-    server = list(bot.servers)[0]
-    for member in server.members:
-        msg = 'Hello {0.mention} I am ready to work\ntype !help if you need help'.format(member)
-        await bot.send_message(member, msg)
+    def __init__(self, get, update_channel,**options):
+        """Init AutomaBot.
+        :param get: The Queue reader side.
+        :param update_channel: The notification channel id
+        :param **options: Default commands.Bot parameters
+        """
+        super().__init__(**options)
+        self.get = get
+        self.update_channel=update_channel
 
-async def send_error(message):
-    msg = "Sorry, this command is unknown to me... :japanese_ogre: Do you need help? If so, just type *!help*"
-    await bot.send_message(message.channel, msg)
+    @asyncio.coroutine
+    def start(self, *args, **kwargs):
+        """|coro|
+        A shorthand coroutine for :meth:`login` + :meth:`connect`.
 
-# BEGIN FUNCTIONS ---------------------------------------------------------------------------------------
+        OVERRIDE
+        --------
+        Added an extension loader at startup
+        """
+        self.load_extensions()
+        yield from self.login(*args, **kwargs)
+        yield from self.connect()
 
-@bot.event
-async def on_command_error(exception, context):
-    if type(exception) is discord.ext.commands.errors.CommandNotFound:
-        msg = "This command doesn't exist. Try *!help* to get help. :sunglasses: "
-    elif type(exception) is discord.ext.commands.errors.DisabledCommand:
-        msg = ":sleeping:"
-    elif type(exception) is discord.ext.commands.errors.CommandInvokeError:
-        msg=exception.original
-    else:
-        msg = type(exception)
-    await bot.send_message(context.message.channel, msg)
+    @asyncio.coroutine
+    def run(self, *args, **kwargs):
+        """A blocking call that abstracts away the `event loop`_
+        initialisation from you.
+        If you want more control over the event loop then this
+        function should not be used. Use :meth:`start` coroutine
+        or :meth:`connect` + :meth:`login`.
+        Roughly Equivalent to: ::
+            try:
+                loop.run_until_complete(start(*args, **kwargs))
+            except KeyboardInterrupt:
+                loop.run_until_complete(logout())
+                # cancel all tasks lingering
+            finally:
+                loop.close()
+        Warning
+        --------
+        This function must be the last function to call due to the fact that it
+        is blocking. That means that registration of events or anything being
+        called after this function call will not execute until it returns.
 
-def is_owner(ctx):
-    return commands.check(lambda ctx: is_owner_check(ctx.message))
+        OVERRIDE
+        --------
+        Function doesn't run asyncio loop if it is already running.
+        """
 
-@bot.event
-async def on_command_not_found(message):
-    bot.say(message)
+        try:
+            fct = self.start(*args, **kwargs)
+            if self.loop.is_running():
+                return fct
+            else:
+                return self.loop.run_until_complete(fct)
+        except KeyboardInterrupt:
+            self.logout()
+            pending = asyncio.Task.all_tasks(loop=self.loop)
+            gathered = asyncio.gather(*pending, loop=self.loop)
+            try:
+                gathered.cancel()
+                if self.loop.is_running():
+                    gathered
+                else:
+                    self.loop.run_until_complete(gathered)
 
-@bot.command(pass_context=True)
-async def hello(ctx):
-    """
-    Says hello
-    """
-    msg = f'Hello {ctx.message.author.mention}'
-    await bot.say(msg)
+                # we want to retrieve any exceptions to make sure that
+                # they don't nag us about it being un-retrieved.
+                gathered.exception()
+            except:
+                pass
 
-@bot.command(pass_context=True, hidden=True)
-@commands.check(is_owner)
-async def sleep(ctx):
-    global awake
-    awake = False
-    await bot.change_presence(status=discord.Status.dnd, afk=True)
-    msg = 'Going to sleep. See you :wave:'
-    for comm in bot.commands:
-        if comm is not "wakeup":
-            bot.commands[comm].enabled=False
-    await bot.say(msg)
+    @asyncio.coroutine
+    async def on_ready(self):
+        """
+        When AutomaBot is ready, print its username in console and start notification process
+        """
+        selfUsername = self.user.name + "#" + self.user.discriminator
+        print('Logged in as')
+        print(selfUsername)
+        print('------')
+        await self.notification_handler()
 
-@bot.command(pass_context=True, hidden=True)
-@commands.check(is_owner)
-async def wakeup(ctx):
-    for comm in bot.commands:
-        if comm is not "wakeup":
-            bot.commands[comm].enabled=True
-    await bot.change_presence(status=discord.Status.online, afk=False)
-    msg = 'Goooooooooood morniiing vietnammmmmm :bomb:'
-    await bot.say(msg)
-
-async def treat(message):
-    """treats message if content matches a known function"""
-    global functions
-    #if user isn't allowed to use this function, let him know
-    if str(message.author) not in functions["!user"].parameter_list:
-        msg = 'I am not allowed to let you do this! :no_mouth:\n Please don\'t contact {0.mention} (server admin) to complain...'.format(list(bot.servers)[0].owner)
-        await bot.send_message(message.channel, msg)
-        return 0
-
-    tmp = await bot.send_message(message.channel, choice(functions["!jokes"].parameter_list))
-
-    msg_split = message.content.split(" ", 1)
-    my_commander = functions[msg_split[0]]
-    if len(msg_split) == 1:
-
-        embed = make_embed_message("**What do you wand to do? Options are following:**", message, my_commander.funcs_desc, bot)
-        await bot.edit_message(tmp, new_content=message.content+ ': ', embed=embed)
-
-        def fct_check(m):
-            """checks if function exists in class"""
-            invert_op = getattr(my_commander, m.content.split(" ", 1)[0], None)
-            if callable(invert_op):
-                return True
-            return False
-
-        fct = await bot.wait_for_message(timeout=15.0, author=message.author, check=fct_check)
-        func_content = fct.content
-    else:
-        func_split = msg_split[1].split(" ", 1)
-        if callable(getattr(my_commander, func_split[0], None)):
-            func_content = msg_split[1]
-            fct = True
+    @asyncio.coroutine
+    async def on_command_error(self, exception, context):
+        """
+        Error handling function.
+        """
+        if isinstance(exception, discord.ext.commands.errors.CommandNotFound):
+            msg = "Sorry, this command is unknown to me... :japanese_ogre: Do you need help? If so, just type *!help* :sunglasses:"
+        elif isinstance(exception, discord.ext.commands.errors.DisabledCommand):
+            msg = ":sleeping:"
+        elif isinstance(exception, discord.ext.commands.errors.CommandInvokeError):
+            msg=exception.original
         else:
-            await send_error(message)
-            return 0
+            msg = type(exception)
+        await self.send_message(context.message.channel, msg)
 
-    if fct is None:
-        msg = 'Sorry, you took too long. Aborting...'
-        await bot.send_message(message.channel, msg)
-        return
-    else:
-        fct_split = func_content.split(" ", 1)
-        func = fct_split[0]
-        if len(fct_split) > 1:
-            param = fct_split[1]
-            await getattr(my_commander,func)(message, tmp, param)
-        else:
-            await getattr(my_commander,func)(message, tmp)
+    def load_extensions(self):
+        """
+        Function used to load extensions at startup.
+        Credits go to @leovoel (https://github.com/leovoel). You can find this code here : https://gist.github.com/leovoel/46cd89ed6a8f41fd09c5
+        """
+        for extension in startup_extensions:
+            try:
+                self.load_extension(extension)
+                print(f"loaded extension {extension}")
+            except Exception as e:
+                exc = '{}: {}'.format(type(e).__name__, e)
+                print('Failed to load extension {}\n{}'.format(extension, exc))
 
-# END FUNCTIONS ---------------------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    bot.run('MzE0Nzg1Njg0NzYwMDM1MzI4.C_9OiQ.Jw2oZoxgnZb5ji5q-CnQdW_2UkM')
+    async def notification_handler(self):
+        """
+        Send a message to the channel specified in config file when datas are available.
+        Datas are sent by the api when a light state changes
+        """
+        while not self.is_closed:
+            data = await self.get()
+            data["author"]="AutomaBot"
+            msg = make_embed_message(title="Update!", datas=data, bot=self)
+            channel = self.get_channel(self.update_channel)
+            await self.send_message(channel, embed=msg)

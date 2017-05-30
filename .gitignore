@@ -1,3 +1,6 @@
-/pictures
+/trash
 /light
 /__pycache__
+/config
+config.py
+/automation_ressources/config.py
