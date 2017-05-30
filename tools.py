@@ -1,21 +1,35 @@
-import discord
-import datetime
-from random import choice
+"""Discord bot tools."""
 
-states = {True:'On',False:'Off'}
+import datetime
+import json
+
+import discord
+
+states = {True: 'On', False: 'Off'}
+
+
+def load_params(fname):
+    """Load parameters from file."""
+    params = {}
+    with open(fname, 'r', encoding='utf-8') as fp:
+        params.update(json.load(fp))
+    return params
+
 
 def make_embed_message(title, datas, bot, message=None):
     """
-    Returns a embed message for discord.
+    Return a embed message for discord.
+
     Datas must be a simple dict
     """
-    #embed properties
+    # embed properties
     embed_title = title
     embed_colour = discord.Colour(0x26A65B)
     embed_timestamp = datetime.datetime.utcfromtimestamp(1495179665)
-    embed = discord.Embed(title=embed_title, colour=embed_colour, timestamp=embed_timestamp)
+    embed = discord.Embed(title=embed_title, colour=embed_colour,
+                          timestamp=embed_timestamp)
 
-    #author properties
+    # author properties
     if message is not None:
         author = message.author
         url = message.author.avatar_url
@@ -27,7 +41,7 @@ def make_embed_message(title, datas, bot, message=None):
     author_icon_url = url
     embed.set_author(name=author_name, icon_url=author_icon_url)
 
-    #footer properties
+    # footer properties
     footer_text = bot.user.name
     footer_icon_url = bot.user.avatar_url
     embed.set_footer(text=footer_text, icon_url=footer_icon_url)
@@ -35,7 +49,7 @@ def make_embed_message(title, datas, bot, message=None):
     inline = False
     for key, data in datas.items():
         if data in states:
-            data=states[data]
+            data = states[data]
         embed.add_field(name=key.title(), value=data, inline=inline)
 
     return embed

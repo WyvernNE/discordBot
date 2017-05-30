@@ -1,0 +1,8 @@
+#!/bin/bash
+
+echo "flake check:" > check.txt
+flake8 ./ >> check.txt
+echo "" >> check.txt
+echo "pycodestyle check:" >> check.txt
+pycodestyle ./ >> check.txt
+isort -rc -c -vb . >> check.txt

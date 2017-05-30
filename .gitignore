@@ -2,5 +2,6 @@
 /light
 /__pycache__
 /config
-config.py
+config.json
 /automation_ressources/config.py
+check.txt
