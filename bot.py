@@ -83,16 +83,23 @@ class AutomaBot(commands.Bot):
         Error handling function.
         """
         if isinstance(exception, discord.ext.commands.errors.CommandNotFound):
-            msg = """Sorry, this command is unknown to me... :japanese_ogre:
-                    Do you need help? If so, just type *!help* :sunglasses:"""
+            msg = """Sorry, this command is unknown to me... :japanese_ogre:\
+                    \nDo you need help? If so, just type \
+                    ***!help*** :sunglasses:"""
         elif isinstance(exception,
                         discord.ext.commands.errors.DisabledCommand):
             msg = ":sleeping:"
         elif isinstance(exception,
+                        discord.ext.commands.errors.CheckFailure):
+            msg = """:octagonal_sign: you are not allowed to do this.\
+                    \nOnly an :alien: can wake me up..."""
+        elif isinstance(exception,
                         discord.ext.commands.errors.CommandInvokeError):
             msg = exception.original
+            print(msg)
         else:
             msg = type(exception)
+            print(msg)
         await self.send_message(context.message.channel, msg)
 
     def load_extensions(self):

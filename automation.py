@@ -21,7 +21,7 @@ class Automation:
         """
         self.filename = filename
         self.bot = bot
-        params = load_params("./config.json")
+        params = load_params(param="automation")
         self.url_get = params['url_get']
         self.url_post = params['url_post']
 

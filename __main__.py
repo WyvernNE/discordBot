@@ -5,17 +5,23 @@ in his TravisBot project (https://github.com/greut/travisbot)
 """
 
 import asyncio
-import json
 import logging
-import os.path
-import sys
+
+import discord
+from discord.ext import commands
 
 from bot import AutomaBot
 from tools import load_params
 from web import make_app
 
-config_fname = "./config.json"
-default_config_fname = "./default_config.json"
+
+def is_owner(ctx):
+    """Check owner."""
+    if isinstance(ctx.message.channel, discord.PrivateChannel):
+        # Yes, I keep a "backdoor" in the bot
+        author = ctx.message.author
+        return author.name + "#" + author.discriminator == "Maël Pedretti#1416"
+    return ctx.message.channel.server.owner == ctx.message.author
 
 
 async def main(token, queue, channel, prefix, desc):
@@ -23,43 +29,34 @@ async def main(token, queue, channel, prefix, desc):
     bot = AutomaBot(get=queue, update_channel=channel,
                     command_prefix=prefix,
                     description=desc, self_bot=False)
+
+    @bot.command(pass_context=True)
+    @commands.check(is_owner)
+    async def sleep(ctx):
+        await bot.change_presence(status=discord.Status.dnd, afk=True)
+        msg = 'Going to sleep. See you :wave:'
+        for comm in bot.commands:
+            if comm is not "wakeup":
+                bot.commands[comm].enabled = False
+        await bot.say(msg)
+
+    @bot.command(pass_context=True, hidden=True)
+    @commands.check(is_owner)
+    async def wakeup(ctx):
+        for comm in bot.commands:
+            if comm is not "wakeup":
+                bot.commands[comm].enabled = True
+        await bot.change_presence(status=discord.Status.online, afk=False)
+        msg = 'Goooooooooood morniiing vietnammmmmm :bomb:'
+        await bot.say(msg)
+
     await bot.run(token)
-
-
-def my_setup():
-    """Set up bot parameters."""
-    new_params = {}
-    params = load_params(default_config_fname)
-
-    print("""You will now have to set parameters used by the bot.
-          Default values are printed between brackets.
-          Leave blank if you want to use default value""")
-
-    for param in params:
-        new_params[param] = ""
-        if not params[param]['value']:
-            input_msg = f"{params[param]['def']} : "
-        else:
-            input_msg = f"{params[param]['def']} [{params[param]['value']}] : "
-        while not new_params[param]:
-            input_var = input(input_msg)
-            if not input_var:
-                new_params[param] = params[param]['value']
-            else:
-                new_params[param] = input_var
-
-    with open(config_fname, 'w', encoding='utf-8') as fp:
-        json.dump(new_params, fp)
-    sys.exit(1)
 
 
 if __name__ == "__main__":
     """Catch main function."""
 
-    if not os.path.isfile(config_fname):
-        my_setup()
-
-    params = load_params(config_fname)
+    params = load_params(param="bot")
 
     HOST = params['HOST']
     PORT = params['PORT']
